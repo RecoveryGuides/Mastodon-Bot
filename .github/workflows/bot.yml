@@ -28,45 +28,6 @@ jobs:
     - name: 📦 Zainstaluj zależności
       run: pip install Mastodon.py==1.8.1
     
-    - name: 📝 Stwórz pliki jeśli brakuje
-      run: |
-        # Plik sentencji jeśli nie istnieje
-        if [ ! -f "sentences.txt" ]; then
-          echo "Tworzę sentences.txt..."
-          cat > sentences.txt << 'EOF'
-When you're broke, track every dollar. It adds up fast.
-Call hospital billing TODAY for payment plans.
-Food banks exist for a reason. Use them without shame.
-Sell plasma - immediate cash when you have nothing.
-Cancel ALL subscriptions. Netflix won't feed you.
-Rice and beans = $0.50 per meal. Learn to cook them.
-Call 211 for emergency help with bills and food.
-Your library has free internet, AC, and job resources.
-Apply for SNAP benefits online - takes 20 minutes.
-Avoid payday loans at ALL costs. 400% interest kills.
-Walk or bike everywhere. Cancel car insurance if needed.
-Collect aluminum cans. Honest money when desperate.
-Learn basic handyman skills. Offer services on Craigslist.
-Check church bulletin boards for odd jobs paying cash.
-Use food pantry finder: feedingamerica.org/find-food
-Medicaid expansion saved millions. Check your eligibility.
-Section 8 waiting lists are long. Apply TODAY anyway.
-Learn about "adverse possession" laws in your state.
-Homeless shelters often have job placement resources.
-Sell old clothes on Poshmark. Every $5 helps.
-EOF
-        fi
-        
-        # Plik użytych sentencji
-        if [ ! -f "used_sentences.json" ]; then
-          echo '{"used": [], "reset_date": "2000-01-01"}' > used_sentences.json
-        fi
-        
-        # Licznik
-        if [ ! -f "counter.txt" ]; then
-          echo "0" > counter.txt
-        fi
-    
     - name: 🤖 Uruchom bota
       env:
         MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
@@ -79,7 +40,7 @@ EOF
         git config --global user.email "bot@github.com"
         git config --global user.name "GitHub Bot"
         
-        git add used_sentences.json counter.txt 2>/dev/null || true
+        git add used_sentences.json counter.txt posted_toots.json 2>/dev/null || true
         
         if git diff --staged --quiet; then
           echo "📭 Brak zmian"
