@@ -1,128 +1,90 @@
-name: 🤖 Mastodon Bot
+name: 🤖 Mastodon Simple Bot
 
 on:
-  # Dwa posty dziennie - losowe minuty
   schedule:
-    - cron: '15-45/15 14 * * *'  # 14:15-14:45 UTC co 15 minut
-    - cron: '15-45/15 22 * * *'  # 22:15-22:45 UTC co 15 minut
+    # Uruchamiaj co 30 minut, 24/7
+    - cron: '*/30 * * * *'
   
-  # Ręczne uruchomienie
   workflow_dispatch:
 
-# Tylko jedna instancja na raz
 concurrency:
-  group: mastodon-bot-${{ github.ref }}
+  group: mastodon-simple-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  post:
+  run-bot:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     
     steps:
-      # 1. Pobierz kod
-      - name: 📥 Pobierz kod
-        uses: actions/checkout@v3
-      
-      # 2. Ustaw Pythona
-      - name: 🐍 Ustaw Pythona 3.10
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-      
-      # 3. Zainstaluj biblioteki
-      - name: 📦 Zainstaluj zależności
-        run: |
-          pip install Mastodon.py==1.8.1
-          pip install python-dotenv
-      
-      # 4. Sprawdź czy już postowano dzisiaj
-      - name: 🔍 Sprawdź limit dzienny
-        id: check_limit
-        run: |
-          # Utwórz plik historii jeśli nie istnieje
-          if [ ! -f "history.json" ]; then
-            echo '{"daily_count": 0, "last_date": "2000-01-01"}' > history.json
-          fi
-          
-          # Sprawdź licznik
-          python3 << 'EOF'
-import json
-from datetime import datetime
-
-try:
-    with open('history.json', 'r') as f:
-        data = json.load(f)
+    - name: 📥 Pobierz kod
+      uses: actions/checkout@v3
     
-    today = datetime.utcnow().strftime('%Y-%m-%d')
+    - name: 🐍 Ustaw Pythona
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
     
-    if data.get('last_date') == today:
-        count = data.get('daily_count', 0)
-    else:
-        count = 0
+    - name: 📦 Zainstaluj zależności
+      run: pip install Mastodon.py==1.8.1
     
-    print(f"Count: {count}")
-    
-    if count >= 2:
-        print("skip=true")
-    else:
-        print("skip=false")
-        
-except Exception as e:
-    print(f"Error: {e}")
-    print("skip=false")
+    - name: 📝 Stwórz pliki jeśli brakuje
+      run: |
+        # Plik sentencji jeśli nie istnieje
+        if [ ! -f "sentences.txt" ]; then
+          echo "Tworzę sentences.txt..."
+          cat > sentences.txt << 'EOF'
+When you're broke, track every dollar. It adds up fast.
+Call hospital billing TODAY for payment plans.
+Food banks exist for a reason. Use them without shame.
+Sell plasma - immediate cash when you have nothing.
+Cancel ALL subscriptions. Netflix won't feed you.
+Rice and beans = $0.50 per meal. Learn to cook them.
+Call 211 for emergency help with bills and food.
+Your library has free internet, AC, and job resources.
+Apply for SNAP benefits online - takes 20 minutes.
+Avoid payday loans at ALL costs. 400% interest kills.
+Walk or bike everywhere. Cancel car insurance if needed.
+Collect aluminum cans. Honest money when desperate.
+Learn basic handyman skills. Offer services on Craigslist.
+Check church bulletin boards for odd jobs paying cash.
+Use food pantry finder: feedingamerica.org/find-food
+Medicaid expansion saved millions. Check your eligibility.
+Section 8 waiting lists are long. Apply TODAY anyway.
+Learn about "adverse possession" laws in your state.
+Homeless shelters often have job placement resources.
+Sell old clothes on Poshmark. Every $5 helps.
 EOF
-          
-          # Przeczytaj wynik
-          SKIP=$(python3 -c "
-import json, datetime
-try:
-    with open('history.json') as f:
-        data = json.load(f)
-    today = datetime.datetime.utcnow().strftime('%Y-%m-%d')
-    if data.get('last_date') == today and data.get('daily_count', 0) >= 2:
-        print('true')
-    else:
-        print('false')
-except:
-    print('false')
-")
-          
-          echo "Dzisiaj postów: $SKIP"
-          echo "skip=$SKIP" >> $GITHUB_OUTPUT
-      
-      # 5. Losowe opóźnienie
-      - name: ⏰ Losowe opóźnienie
-        if: steps.check_limit.outputs.skip == 'false'
-        run: |
-          # Losowe opóźnienie 0-30 minut
-          DELAY=$(( RANDOM % 1800 ))
-          echo "⏳ Czekam $DELAY sekund..."
-          sleep $DELAY
-      
-      # 6. Uruchom bota
-      - name: 🤖 Uruchom Mastodon Bota
-        if: steps.check_limit.outputs.skip == 'false'
-        env:
-          MASTODON_TOKEN: ${{ secrets.MASTODON_TOKEN }}
-          MASTODON_URL: ${{ secrets.MASTODON_URL }}
-        run: python bot.py
-      
-      # 7. Zapisz zmiany
-      - name: 💾 Zapisz historię
-        if: always()
-        run: |
-          git config --global user.email "bot@github.com"
-          git config --global user.name "GitHub Bot"
-          
-          # Dodaj zmiany w historii
-          git add history.json || echo "No history changes"
-          git add counter.txt || echo "No counter changes"
-          
-          # Commit jeśli są zmiany
-          if git diff --staged --quiet; then
-            echo "📭 Brak zmian do zapisania"
-          else
-            git commit -m "🤖 Bot update $(date -u +'%Y-%m-%d %H:%M')"
-            git push
-            echo "✅ Zmiany zapisane"
-          fi
+        fi
+        
+        # Plik użytych sentencji
+        if [ ! -f "used_sentences.json" ]; then
+          echo '{"used": [], "reset_date": "2000-01-01"}' > used_sentences.json
+        fi
+        
+        # Licznik
+        if [ ! -f "counter.txt" ]; then
+          echo "0" > counter.txt
+        fi
+    
+    - name: 🤖 Uruchom bota
+      env:
+        MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
+        MASTODON_BASE_URL: ${{ secrets.MASTODON_BASE_URL }}
+      run: python bot.py
+    
+    - name: 💾 Zapisz zmiany
+      if: always()
+      run: |
+        git config --global user.email "bot@github.com"
+        git config --global user.name "GitHub Bot"
+        
+        git add used_sentences.json counter.txt 2>/dev/null || true
+        
+        if git diff --staged --quiet; then
+          echo "📭 Brak zmian"
+        else
+          git commit -m "🤖 Update $(date -u +'%H:%M')"
+          git push
+          echo "✅ Zmiany zapisane"
+        fi
