@@ -1,61 +1,26 @@
-# 🤖 Mastodon Financial Helper Bot
+# 🤖 Mastodon Simple Bot
 
-Bot który pomaga osobom w trudnej sytuacji finansowej na Mastodon.
+Bot który odpowiada na posty na Mastodon.
 
-## ✨ Funkcje
-- 2 posty dziennie (14-15 UTC i 22-23 UTC)
-- Losowe godziny publikacji
-- Wyszukuje posty z hashtagami o trudnościach finansowych
-- Odpowiada pomocnymi radami
-- Co 5 post link do sklepu
-- Darmowe i bez limitów!
+## 📋 Wymagania
+1. Konto na Mastodon (np. mastodon.social)
+2. Access token z uprawnieniami: read:statuses, write:statuses
+3. GitHub account
 
-## 🚀 Jak uruchomić
+## 🚀 Szybki start
+1. Utwórz nowe repo na GitHub
+2. Dodaj 5 plików z tej struktury
+3. W GitHub Secrets dodaj:
+   - `MASTODON_ACCESS_TOKEN` - twój token
+   - `MASTODON_BASE_URL` - np. `https://mastodon.social`
+4. Bot zacznie działać automatycznie co 30 minut
 
-### 1. Załóż konto na Mastodon
-1. Wejdź na: **https://mastodon.social**
-2. Kliknij **"Create account"**
-3. Wpisz nazwę: `FinancialHelperBot`
-4. Potwierdź email
+## ⚙️ Konfiguracja
+- Edytuj `sentences.txt` aby dodać swoje sentencje
+- Bot NIGDY nie powtarza sentencji w ciągu dnia
+- Co 5 komentarz dodaje link do sklepu
 
-### 2. Utwórz aplikację i token
-1. Po zalogowaniu: **Preferences** → **Development**
-2. Kliknij **"New application"**
-3. Wpisz:
-   - Name: `Financial Helper Bot`
-   - Website: `https://github.com/yourusername/mastodon-bot`
-   - Scopes: **read:statuses, write:statuses**
-4. Kliknij **"Submit"**
-5. Skopiuj **Your access token**
-
-### 3. Skonfiguruj GitHub
-1. W GitHub repo: **Settings** → **Secrets and variables** → **Actions**
-2. Dodaj 2 sekrety:
-   - `MASTODON_TOKEN` - twój access token
-   - `MASTODON_URL` - `https://mastodon.social`
-
-### 4. Wrzuć kod na GitHub
-Utwórz 5 plików:
-- `.github/workflows/bot.yml`
-- `bot.py`
-- `sentences.txt`
-- `requirements.txt`
-- `README.md`
-
-### 5. Uruchom bota
-1. Idź do **Actions**
-2. Kliknij **"🤖 Mastodon Bot"**
-3. Kliknij **"Run workflow"**
-
-## ⏰ Godziny działania
-- **14:15-14:45 UTC** - pierwszy post (losowa minuta)
-- **22:15-22:45 UTC** - drugi post (losowa minuta)
-
-## 📊 Statystyki
-- 2 posty dziennie
-- 60 postów miesięcznie
-- Bez limitu API
-- Całkowicie darmowe
-
-## 🔧 Edycja sentencji
-Edytuj plik `sentences.txt` aby dodać swoje sentencje.
+## 📊 Pliki generowane automatycznie
+- `used_sentences.json` - śledzi użyte sentencje
+- `counter.txt` - licznik komentarzy
+- `posted_toots.json` - historia opublikowanych odpowiedzi
