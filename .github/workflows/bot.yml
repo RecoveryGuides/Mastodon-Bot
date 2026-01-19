@@ -13,7 +13,7 @@ jobs:
     - name: 📥 Checkout code
       uses: actions/checkout@v3
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}  # DODANE: token do commitów
+        token: ${{ secrets.GITHUB_TOKEN }}
         fetch-depth: 0
     
     - name: 🐍 Setup Python
@@ -124,59 +124,40 @@ jobs:
           echo "📊 Counter: NOT FOUND"
         fi
         
+        # Proste sprawdzenie used_sentences.json
         if [ -f "used_sentences.json" ]; then
+          echo "📝 Checking used sentences..."
           python3 -c "
-import json, datetime
+import json
 try:
     with open('used_sentences.json', 'r') as f:
         data = json.load(f)
-    
     used_count = len(data.get('used', []))
-    reset_date = data.get('reset_date', 'unknown')
-    today = datetime.date.today().isoformat()
-    
-    print(f'📝 Used sentences: {used_count}')
-    print(f'📅 Reset date: {reset_date}')
-    print(f'📅 Today: {today}')
-    
-    if reset_date != today:
-        print('⚠️  WARNING: Will reset tomorrow!')
-    
+    print(f'   Used sentences today: {used_count}')
 except Exception as e:
-    print(f'❌ Error reading used_sentences.json: {e}')
+    print(f'   Error: {e}')
 "
         fi
         
+        # Sprawdź posted_toots.json
         if [ -f "posted_toots.json" ]; then
           LINE_COUNT=$(wc -l < posted_toots.json 2>/dev/null || echo "0")
           echo "🚀 Total responses posted: $LINE_COUNT"
           
           if [ "$LINE_COUNT" -gt "0" ]; then
             echo "📅 Last 3 responses:"
+            # Pokaż ostatnie 3 w prostszy sposób
             tail -3 posted_toots.json 2>/dev/null | while read line; do
-              python3 -c "
-import json, sys, datetime
-try:
-    if sys.argv[1].strip():
-        data = json.loads(sys.argv[1])
-        date_str = data.get('date', '')
-        to_user = data.get('to', 'unknown')
-        
-        # Formatuj datę
-        if 'T' in date_str:
-            dt = datetime.datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-            time_str = dt.strftime('%H:%M')
-        else:
-            time_str = date_str[:5] if len(date_str) >= 5 else date_str
-        
-        print(f'   • {time_str} → @{to_user}')
-except Exception as e:
-    pass
-" "$line" 2>/dev/null || true
+              if [ -n "$line" ]; then
+                DATE=$(echo "$line" | grep -o '"date":"[^"]*"' | cut -d'"' -f4 | cut -c12-16 || echo "??:??")
+                USER=$(echo "$line" | grep -o '"to":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
+                echo "   • $DATE → @$USER"
+              fi
             done
           fi
         fi
         
+        # Sprawdź sentences.txt
         if [ -f "sentences.txt" ]; then
           TOTAL_SENTENCES=$(wc -l < sentences.txt 2>/dev/null || echo "0")
           echo "📚 Total sentences available: $TOTAL_SENTENCES"
