@@ -17,7 +17,36 @@ print("=" * 50)
 print("🤖 MASTODON SIMPLE BOT")
 print("=" * 50)
 
-# 1. KONFIGURACJA MASTODON
+# 1. INICJALIZUJ PLIKI (ŻEBY NA PEWNO ISTNIAŁY)
+print("📁 Inicjalizuję pliki...")
+def init_files():
+    if not os.path.exists("counter.txt"):
+        with open("counter.txt", "w") as f:
+            f.write("0")
+        print("✅ counter.txt created")
+    
+    if not os.path.exists("used_sentences.json"):
+        with open("used_sentences.json", "w") as f:
+            json.dump({"used": [], "reset_date": date.today().isoformat()}, f)
+        print("✅ used_sentences.json created")
+    
+    if not os.path.exists("posted_toots.json"):
+        with open("posted_toots.json", "w") as f:
+            f.write("")
+        print("✅ posted_toots.json created")
+    
+    if not os.path.exists("sentences.txt"):
+        print("❌ BRAK sentences.txt!")
+        print("Tworzę przykładowy plik...")
+        with open("sentences.txt", "w") as f:
+            f.write("Every day is a new chance to change.\n")
+            f.write("Small steps lead to big results.\n")
+            f.write("You're stronger than you think.\n")
+        print("✅ sentences.txt created (example)")
+
+init_files()
+
+# 2. KONFIGURACJA MASTODON
 ACCESS_TOKEN = os.environ.get('MASTODON_ACCESS_TOKEN')
 BASE_URL = os.environ.get('MASTODON_BASE_URL', 'https://mastodon.social')
 
@@ -40,7 +69,7 @@ except Exception as e:
     print(f"❌ Błąd połączenia: {e}")
     exit(1)
 
-# 2. WCZYTAJ SENTENCJE
+# 3. WCZYTAJ SENTENCJE
 print("\n📚 Wczytywanie sentencji...")
 try:
     with open('sentences.txt', 'r', encoding='utf-8') as f:
@@ -56,7 +85,7 @@ except Exception as e:
     print(f"❌ Błąd wczytywania sentencji: {e}")
     exit(1)
 
-# 3. WCZYTAJ HISTORIĘ UŻYTYCH SENTENCJI
+# 4. WCZYTAJ HISTORIĘ UŻYTYCH SENTENCJI
 print("\n📖 Sprawdzam historię sentencji...")
 try:
     with open('used_sentences.json', 'r') as f:
@@ -77,7 +106,7 @@ except Exception as e:
     history = {'used': [], 'reset_date': date.today().isoformat()}
     used_sentences = set()
 
-# 4. ZNAJDŹ NIEUŻYTE SENTENCJE
+# 5. ZNAJDŹ NIEUŻYTE SENTENCJE
 available_sentences = [s for s in all_sentences if s not in used_sentences]
 
 if not available_sentences:
@@ -88,7 +117,7 @@ if not available_sentences:
 
 print(f"🎯 Dostępnych sentencji: {len(available_sentences)}")
 
-# 5. WYBIERZ LOSOWĄ SENTENCJĘ
+# 6. WYBIERZ LOSOWĄ SENTENCJĘ
 selected_sentence = random.choice(available_sentences)
 
 # Dodaj do użytych
@@ -101,7 +130,7 @@ with open('used_sentences.json', 'w') as f:
 
 print(f"📝 Wybrana sentencja: {selected_sentence[:80]}...")
 
-# 6. OBSŁUGA LICZNIKA DLA LINKÓW
+# 7. OBSŁUGA LICZNIKA DLA LINKÓW
 try:
     with open('counter.txt', 'r') as f:
         counter = int(f.read().strip())
@@ -126,9 +155,90 @@ else:
 
 print(f"📤 Przygotowana odpowiedź: {reply[:100]}...")
 
-# ... dalszy istniejący kod ...
+# 8. WYSZUKAJ POSTY DO ODPOWIEDZI
+print("\n🔍 Szukam postów...")
 
-# 8. OPUBLIKUJ ODPOWIEDŹ
+# Hashtagi związane z problemami finansowymi
+keywords = [
+    "debt",
+    "creditor", 
+    "collection",
+    "broke",
+    "medical bills",
+    "homeless",
+    "eviction",
+    "food stamps",
+    "SNAP",
+    "financial help",
+    "money stress",
+    "emergency cash",
+    "unemployed",
+    "bill help",
+    "rent help",
+    "financial crisis",
+    "collectors",
+    "low income",
+    "survival",
+    "poverty",
+    "medical",
+    "bill",
+    "bills",
+    "cash",
+    "money",
+    "guide",
+    "struggling"
+]
+
+selected_keyword = random.choice(keywords)
+print(f"   Szukam: #{selected_keyword}")
+
+try:
+    # Szukaj postów z hashtagiem
+    posts = mastodon.timeline_hashtag(
+        hashtag=selected_keyword,
+        limit=20
+    )
+    
+    if not posts:
+        print("❌ Nie znaleziono postów, próbuję inny hashtag...")
+        # Fallback - szukaj po prostu "help"
+        posts = mastodon.timeline_hashtag(hashtag="help", limit=15)
+    
+    if not posts:
+        print("❌ Nie znaleziono żadnych postów")
+        exit(0)
+    
+    print(f"✅ Znaleziono {len(posts)} postów")
+    
+    # Filtruj posty - znajdź z engagement
+    good_posts = []
+    for post in posts:
+        # Pomiń swoje własne posty
+        if post['account']['username'] == account['username']:
+            continue
+        
+        # Szukaj postów z engagement
+        if post['favourites_count'] > 0 or post['reblogs_count'] > 0:
+            good_posts.append(post)
+    
+    if not good_posts:
+        good_posts = posts[:5]  # Weź pierwsze 5
+    
+    # Wybierz losowy post
+    post = random.choice(good_posts)
+    
+    print(f"\n🎯 Wybrany post od: @{post['account']['username']}")
+    print(f"   👍 Polubienia: {post['favourites_count']}")
+    print(f"   🔁 Boosty: {post['reblogs_count']}")
+    print(f"   💬 Odpowiedzi: {post['replies_count']}")
+    content_preview = post['content'].replace('<p>', '').replace('</p>', '')[:80]
+    print(f"   📝 Tekst: {content_preview}...")
+    
+except Exception as e:
+    print(f"❌ Błąd wyszukiwania postów: {type(e).__name__}: {e}")
+    exit(1)
+
+# 9. OPUBLIKUJ ODPOWIEDŹ
 print("\n🔄 Publikuję odpowiedź...")
 
 # Upewnij się że odpowiedź nie jest za długa
@@ -182,5 +292,5 @@ except:
     pass
 
 print(f"📊 Użyte sentencje: {len(used_sentences)}/{len(all_sentences)}")
-print(f"📈 Licznik linków: {counter} (następny link przy {5 - (counter % 5)})")
+print(f"📈 Licznik: {counter} (następny link za {5 - (counter % 5)})")
 print("=" * 50)
