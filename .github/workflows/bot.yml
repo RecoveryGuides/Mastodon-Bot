@@ -4,68 +4,86 @@ on:
   schedule:
     - cron: '*/30 * * * *'
   workflow_dispatch:
- 
+
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     
     steps:
-    - name: 📥 Pobierz kod
+    - name: 📥 Checkout code
       uses: actions/checkout@v3
     
-    - name: 🐍 Ustaw Pythona
+    - name: 🐍 Setup Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
     
-    - name: 📦 Zainstaluj zależności
-      run: pip install Mastodon.py==1.8.1
+    - name: 📦 Install dependencies
+      run: |
+        pip install Mastodon.py==1.8.1
+        pip install requests
     
-    - name: 🤖 Uruchom bota
+    - name: 🤖 Run bot
       env:
         MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
         MASTODON_BASE_URL: ${{ secrets.MASTODON_BASE_URL }}
       run: python bot.py
     
-    - name: 📊 Pokaż statystyki
+    - name: 📊 Show statistics
       if: always()
       run: |
-        echo "📈 STATYSTYKI BOTA:"
+        echo "📈 BOT STATISTICS:"
         echo "========================"
         
-        if [ -f "counter.txt" ]; then
-          COUNTER=$(cat counter.txt)
-          echo "📊 Licznik odpowiedzi: $COUNTER"
-          echo "🔗 Następny link przy: $((5 - (COUNTER % 5)))"
+        # Initialize counter if not exists
+        if [ ! -f "counter.txt" ]; then
+          echo "0" > counter.txt
         fi
+        
+        COUNTER=$(cat counter.txt)
+        echo "📊 Response counter: $COUNTER"
         
         if [ -f "used_sentences.json" ]; then
           USED=$(python3 -c "
 import json
 try:
-    with open('used_sentences.json') as f:
+    with open('used_sentences.json', 'r') as f:
         data = json.load(f)
-    print(f\"📝 Użyte sentencje: {len(data.get('used', []))}\")
-except:
-    print(\"📝 Użyte sentencje: 0\")
+    used_count = len(data.get('used_sentences', []))
+    print(f'📝 Used sentences: {used_count}')
+except Exception as e:
+    print(f'📝 Used sentences: 0 (Error: {str(e)[:50]})')
 ")
           echo "$USED"
+        else
+          echo "📝 Used sentences: 0 (File not found)"
         fi
         
         if [ -f "posted_toots.json" ]; then
-          COUNT=$(wc -l < posted_toots.json 2>/dev/null || echo "0")
-          echo "🚀 Opublikowanych odpowiedzi: $COUNT"
+          COUNT=$(wc -l < posted_toots.json 2>/dev/null | tr -d ' ' || echo "0")
+          echo "🚀 Published responses: $COUNT"
           
-          # Pokaż ostatnie 3
-          echo "📅 Ostatnie odpowiedzi:"
-          tail -3 posted_toots.json 2>/dev/null | while read line; do
-            python3 -c "
+          if [ "$COUNT" -gt "0" ]; then
+            echo "📅 Last responses:"
+            tail -3 posted_toots.json 2>/dev/null | while read line; do
+              python3 -c "
 import json, sys
 try:
-    data = json.loads(sys.argv[1])
-    print(f\"   • {data['date'][11:16]} → @{data['to']}\")
-except:
+    if sys.argv[1].strip():
+        data = json.loads(sys.argv[1])
+        user = data.get('user', 'unknown')
+        date = data.get('date', '')[:16]
+        print(f'   • {date} → @{user}')
+except Exception:
     pass
-" "$line" || true
-          done
+" "$line" 2>/dev/null || true
+            done
+          fi
+        else
+          echo "🚀 Published responses: 0"
+          echo "📅 Last responses: None yet"
         fi
+        
+        echo ""
+        echo "🔧 Workflow status: ✅ COMPLETED"
+        echo "⏰ Next run: Every 30 minutes"
