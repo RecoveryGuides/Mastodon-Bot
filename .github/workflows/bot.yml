@@ -12,6 +12,9 @@ jobs:
     steps:
     - name: 📥 Checkout code
       uses: actions/checkout@v3
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}  # DODANE: token do commitów
+        fetch-depth: 0
     
     - name: 🐍 Setup Python
       uses: actions/setup-python@v4
@@ -20,19 +23,18 @@ jobs:
     
     - name: 📦 Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install Mastodon.py requests python-dotenv
+        pip install Mastodon.py
     
     - name: 🔧 Setup files
       run: |
-        # Create required files if they don't exist
+        # Sprawdź czy pliki istnieją, jeśli nie to utwórz
         if [ ! -f "counter.txt" ]; then
           echo "0" > counter.txt
           echo "✅ Created counter.txt"
         fi
         
         if [ ! -f "used_sentences.json" ]; then
-          echo '{"used_sentences": []}' > used_sentences.json
+          echo '{"used": [], "reset_date": "2024-01-01"}' > used_sentences.json
           echo "✅ Created used_sentences.json"
         fi
         
@@ -41,40 +43,69 @@ jobs:
           echo "✅ Created posted_toots.json"
         fi
         
-        # List all files
-        echo ""
-        echo "📁 Files in directory:"
-        ls -la
-        echo ""
-        echo "📄 Sample of used_sentences.json:"
-        cat used_sentences.json | head -5
-        echo ""
-        echo "🔢 Counter value:"
-        cat counter.txt
-    
-    - name: 🤖 Debug - Check environment
-      run: |
-        echo "🔍 Checking environment..."
-        echo "Python version: $(python --version)"
-        echo "Working directory: $(pwd)"
-        echo ""
-        echo "📄 Checking bot.py..."
-        if [ -f "bot.py" ]; then
-          echo "✅ bot.py exists"
-          echo "First 10 lines:"
-          head -10 bot.py
+        # Sprawdź czy sentences.txt istnieje
+        if [ ! -f "sentences.txt" ]; then
+          echo "❌ ERROR: sentences.txt not found!"
+          echo "Creating example file..."
+          echo "Every small step counts when you're rebuilding your life." > sentences.txt
+          echo "You're stronger than your debts." >> sentences.txt
+          echo "Financial struggles are temporary." >> sentences.txt
         else
-          echo "❌ bot.py NOT FOUND"
-          ls -la *.py
+          echo "✅ sentences.txt exists"
+          echo "📄 Sentences count: $(wc -l < sentences.txt)"
         fi
+        
+        echo ""
+        echo "📁 Initial files:"
+        ls -la *.txt *.json
     
     - name: 🤖 Run bot
       env:
         MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
         MASTODON_BASE_URL: ${{ secrets.MASTODON_BASE_URL }}
       run: |
-        echo "🚀 Running bot.py..."
-        python bot.py 2>&1 || echo "Bot script exited with error"
+        echo "🚀 Starting bot..."
+        python bot.py
+        echo "✅ Bot execution finished"
+    
+    - name: 💾 Commit and push changes
+      run: |
+        # Konfiguracja git
+        git config --global user.name "GitHub Actions Bot"
+        git config --global user.email "actions@github.com"
+        
+        echo "📦 Checking for file changes..."
+        
+        # Sprawdź czy pliki się zmieniły
+        if git diff --name-only | grep -q -E "counter\.txt|used_sentences\.json|posted_toots\.json"; then
+          echo "📁 Changes detected in bot files!"
+          
+          # Dodaj zmienione pliki
+          git add counter.txt used_sentences.json posted_toots.json
+          
+          # Commit
+          TIMESTAMP=$(date '+%Y-%m-%d %H:%M')
+          git commit -m "🤖 Bot update: $TIMESTAMP"
+          
+          # Push
+          git push
+          echo "✅ Changes committed and pushed to repository"
+          
+          # Pokaż co się zmieniło
+          echo ""
+          echo "📊 Updated files:"
+          if [ -f "counter.txt" ]; then
+            echo "  counter.txt: $(cat counter.txt)"
+          fi
+          
+          if [ -f "used_sentences.json" ]; then
+            USED_COUNT=$(python3 -c "import json; data=json.load(open('used_sentences.json')); print(len(data.get('used', [])))" 2>/dev/null || echo "?")
+            echo "  used_sentences.json: $USED_COUNT sentences used"
+          fi
+          
+        else
+          echo "📭 No changes to commit"
+        fi
     
     - name: 📊 Show statistics
       if: always()
@@ -83,31 +114,74 @@ jobs:
         echo "📈 BOT STATISTICS:"
         echo "========================"
         
-        # Simple counter check
+        # Sprawdź czy bot utworzył/wykonał pliki
         if [ -f "counter.txt" ]; then
-          COUNTER=$(cat counter.txt 2>/dev/null || echo "ERROR")
+          COUNTER=$(cat counter.txt 2>/dev/null || echo "error")
           echo "📊 Counter: $COUNTER"
+          NEXT_LINK=$((5 - (COUNTER % 5)))
+          echo "🔗 Next shop link in: $NEXT_LINK responses"
         else
-          echo "📊 Counter: File not found"
+          echo "📊 Counter: NOT FOUND"
         fi
         
-        # Simple JSON check without complex parsing
         if [ -f "used_sentences.json" ]; then
-          echo "📝 used_sentences.json exists"
-          FILE_SIZE=$(stat -c%s "used_sentences.json" 2>/dev/null || echo "?")
-          echo "   File size: ${FILE_SIZE} bytes"
-        else
-          echo "📝 used_sentences.json: NOT FOUND"
+          python3 -c "
+import json, datetime
+try:
+    with open('used_sentences.json', 'r') as f:
+        data = json.load(f)
+    
+    used_count = len(data.get('used', []))
+    reset_date = data.get('reset_date', 'unknown')
+    today = datetime.date.today().isoformat()
+    
+    print(f'📝 Used sentences: {used_count}')
+    print(f'📅 Reset date: {reset_date}')
+    print(f'📅 Today: {today}')
+    
+    if reset_date != today:
+        print('⚠️  WARNING: Will reset tomorrow!')
+    
+except Exception as e:
+    print(f'❌ Error reading used_sentences.json: {e}')
+"
         fi
         
         if [ -f "posted_toots.json" ]; then
-          echo "🚀 posted_toots.json exists"
           LINE_COUNT=$(wc -l < posted_toots.json 2>/dev/null || echo "0")
-          echo "   Lines: $LINE_COUNT"
-        else
-          echo "🚀 posted_toots.json: NOT FOUND"
+          echo "🚀 Total responses posted: $LINE_COUNT"
+          
+          if [ "$LINE_COUNT" -gt "0" ]; then
+            echo "📅 Last 3 responses:"
+            tail -3 posted_toots.json 2>/dev/null | while read line; do
+              python3 -c "
+import json, sys, datetime
+try:
+    if sys.argv[1].strip():
+        data = json.loads(sys.argv[1])
+        date_str = data.get('date', '')
+        to_user = data.get('to', 'unknown')
+        
+        # Formatuj datę
+        if 'T' in date_str:
+            dt = datetime.datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+            time_str = dt.strftime('%H:%M')
+        else:
+            time_str = date_str[:5] if len(date_str) >= 5 else date_str
+        
+        print(f'   • {time_str} → @{to_user}')
+except Exception as e:
+    pass
+" "$line" 2>/dev/null || true
+            done
+          fi
+        fi
+        
+        if [ -f "sentences.txt" ]; then
+          TOTAL_SENTENCES=$(wc -l < sentences.txt 2>/dev/null || echo "0")
+          echo "📚 Total sentences available: $TOTAL_SENTENCES"
         fi
         
         echo ""
-        echo "🔍 Final file list:"
-        ls -la *.json *.txt *.py 2>/dev/null || echo "No matching files"
+        echo "⏰ Next run: ~30 minutes"
+        echo "🔄 Workflow completed at: $(date '+%H:%M:%S')"
