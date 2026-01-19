@@ -20,70 +20,94 @@ jobs:
     
     - name: 📦 Install dependencies
       run: |
-        pip install Mastodon.py==1.8.1
-        pip install requests
+        python -m pip install --upgrade pip
+        pip install Mastodon.py requests python-dotenv
+    
+    - name: 🔧 Setup files
+      run: |
+        # Create required files if they don't exist
+        if [ ! -f "counter.txt" ]; then
+          echo "0" > counter.txt
+          echo "✅ Created counter.txt"
+        fi
+        
+        if [ ! -f "used_sentences.json" ]; then
+          echo '{"used_sentences": []}' > used_sentences.json
+          echo "✅ Created used_sentences.json"
+        fi
+        
+        if [ ! -f "posted_toots.json" ]; then
+          echo "" > posted_toots.json
+          echo "✅ Created posted_toots.json"
+        fi
+        
+        # List all files
+        echo ""
+        echo "📁 Files in directory:"
+        ls -la
+        echo ""
+        echo "📄 Sample of used_sentences.json:"
+        cat used_sentences.json | head -5
+        echo ""
+        echo "🔢 Counter value:"
+        cat counter.txt
+    
+    - name: 🤖 Debug - Check environment
+      run: |
+        echo "🔍 Checking environment..."
+        echo "Python version: $(python --version)"
+        echo "Working directory: $(pwd)"
+        echo ""
+        echo "📄 Checking bot.py..."
+        if [ -f "bot.py" ]; then
+          echo "✅ bot.py exists"
+          echo "First 10 lines:"
+          head -10 bot.py
+        else
+          echo "❌ bot.py NOT FOUND"
+          ls -la *.py
+        fi
     
     - name: 🤖 Run bot
       env:
         MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
         MASTODON_BASE_URL: ${{ secrets.MASTODON_BASE_URL }}
-      run: python bot.py
+      run: |
+        echo "🚀 Running bot.py..."
+        python bot.py 2>&1 || echo "Bot script exited with error"
     
     - name: 📊 Show statistics
       if: always()
       run: |
+        echo ""
         echo "📈 BOT STATISTICS:"
         echo "========================"
         
-        # Initialize counter if not exists
-        if [ ! -f "counter.txt" ]; then
-          echo "0" > counter.txt
+        # Simple counter check
+        if [ -f "counter.txt" ]; then
+          COUNTER=$(cat counter.txt 2>/dev/null || echo "ERROR")
+          echo "📊 Counter: $COUNTER"
+        else
+          echo "📊 Counter: File not found"
         fi
         
-        COUNTER=$(cat counter.txt)
-        echo "📊 Response counter: $COUNTER"
-        
+        # Simple JSON check without complex parsing
         if [ -f "used_sentences.json" ]; then
-          USED=$(python3 -c "
-import json
-try:
-    with open('used_sentences.json', 'r') as f:
-        data = json.load(f)
-    used_count = len(data.get('used_sentences', []))
-    print(f'📝 Used sentences: {used_count}')
-except Exception as e:
-    print(f'📝 Used sentences: 0 (Error: {str(e)[:50]})')
-")
-          echo "$USED"
+          echo "📝 used_sentences.json exists"
+          FILE_SIZE=$(stat -c%s "used_sentences.json" 2>/dev/null || echo "?")
+          echo "   File size: ${FILE_SIZE} bytes"
         else
-          echo "📝 Used sentences: 0 (File not found)"
+          echo "📝 used_sentences.json: NOT FOUND"
         fi
         
         if [ -f "posted_toots.json" ]; then
-          COUNT=$(wc -l < posted_toots.json 2>/dev/null | tr -d ' ' || echo "0")
-          echo "🚀 Published responses: $COUNT"
-          
-          if [ "$COUNT" -gt "0" ]; then
-            echo "📅 Last responses:"
-            tail -3 posted_toots.json 2>/dev/null | while read line; do
-              python3 -c "
-import json, sys
-try:
-    if sys.argv[1].strip():
-        data = json.loads(sys.argv[1])
-        user = data.get('user', 'unknown')
-        date = data.get('date', '')[:16]
-        print(f'   • {date} → @{user}')
-except Exception:
-    pass
-" "$line" 2>/dev/null || true
-            done
-          fi
+          echo "🚀 posted_toots.json exists"
+          LINE_COUNT=$(wc -l < posted_toots.json 2>/dev/null || echo "0")
+          echo "   Lines: $LINE_COUNT"
         else
-          echo "🚀 Published responses: 0"
-          echo "📅 Last responses: None yet"
+          echo "🚀 posted_toots.json: NOT FOUND"
         fi
         
         echo ""
-        echo "🔧 Workflow status: ✅ COMPLETED"
-        echo "⏰ Next run: Every 30 minutes"
+        echo "🔍 Final file list:"
+        ls -la *.json *.txt *.py 2>/dev/null || echo "No matching files"
