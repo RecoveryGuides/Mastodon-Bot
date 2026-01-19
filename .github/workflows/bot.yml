@@ -1,0 +1,128 @@
+name: 🤖 Mastodon Bot
+
+on:
+  # Dwa posty dziennie - losowe minuty
+  schedule:
+    - cron: '15-45/15 14 * * *'  # 14:15-14:45 UTC co 15 minut
+    - cron: '15-45/15 22 * * *'  # 22:15-22:45 UTC co 15 minut
+  
+  # Ręczne uruchomienie
+  workflow_dispatch:
+
+# Tylko jedna instancja na raz
+concurrency:
+  group: mastodon-bot-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. Pobierz kod
+      - name: 📥 Pobierz kod
+        uses: actions/checkout@v3
+      
+      # 2. Ustaw Pythona
+      - name: 🐍 Ustaw Pythona 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      # 3. Zainstaluj biblioteki
+      - name: 📦 Zainstaluj zależności
+        run: |
+          pip install Mastodon.py==1.8.1
+          pip install python-dotenv
+      
+      # 4. Sprawdź czy już postowano dzisiaj
+      - name: 🔍 Sprawdź limit dzienny
+        id: check_limit
+        run: |
+          # Utwórz plik historii jeśli nie istnieje
+          if [ ! -f "history.json" ]; then
+            echo '{"daily_count": 0, "last_date": "2000-01-01"}' > history.json
+          fi
+          
+          # Sprawdź licznik
+          python3 << 'EOF'
+import json
+from datetime import datetime
+
+try:
+    with open('history.json', 'r') as f:
+        data = json.load(f)
+    
+    today = datetime.utcnow().strftime('%Y-%m-%d')
+    
+    if data.get('last_date') == today:
+        count = data.get('daily_count', 0)
+    else:
+        count = 0
+    
+    print(f"Count: {count}")
+    
+    if count >= 2:
+        print("skip=true")
+    else:
+        print("skip=false")
+        
+except Exception as e:
+    print(f"Error: {e}")
+    print("skip=false")
+EOF
+          
+          # Przeczytaj wynik
+          SKIP=$(python3 -c "
+import json, datetime
+try:
+    with open('history.json') as f:
+        data = json.load(f)
+    today = datetime.datetime.utcnow().strftime('%Y-%m-%d')
+    if data.get('last_date') == today and data.get('daily_count', 0) >= 2:
+        print('true')
+    else:
+        print('false')
+except:
+    print('false')
+")
+          
+          echo "Dzisiaj postów: $SKIP"
+          echo "skip=$SKIP" >> $GITHUB_OUTPUT
+      
+      # 5. Losowe opóźnienie
+      - name: ⏰ Losowe opóźnienie
+        if: steps.check_limit.outputs.skip == 'false'
+        run: |
+          # Losowe opóźnienie 0-30 minut
+          DELAY=$(( RANDOM % 1800 ))
+          echo "⏳ Czekam $DELAY sekund..."
+          sleep $DELAY
+      
+      # 6. Uruchom bota
+      - name: 🤖 Uruchom Mastodon Bota
+        if: steps.check_limit.outputs.skip == 'false'
+        env:
+          MASTODON_TOKEN: ${{ secrets.MASTODON_TOKEN }}
+          MASTODON_URL: ${{ secrets.MASTODON_URL }}
+        run: python bot.py
+      
+      # 7. Zapisz zmiany
+      - name: 💾 Zapisz historię
+        if: always()
+        run: |
+          git config --global user.email "bot@github.com"
+          git config --global user.name "GitHub Bot"
+          
+          # Dodaj zmiany w historii
+          git add history.json || echo "No history changes"
+          git add counter.txt || echo "No counter changes"
+          
+          # Commit jeśli są zmiany
+          if git diff --staged --quiet; then
+            echo "📭 Brak zmian do zapisania"
+          else
+            git commit -m "🤖 Bot update $(date -u +'%Y-%m-%d %H:%M')"
+            git push
+            echo "✅ Zmiany zapisane"
+          fi
