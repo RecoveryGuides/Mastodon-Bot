@@ -10,159 +10,61 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: 📥 Checkout code
+    - name: 📥 Pobierz kod z GitHub
       uses: actions/checkout@v3
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}   # ← WAŻNE! TO DZIAŁA AUTOMATYCZNIE
     
-    - name: 🐍 Setup Python
+    - name: 🐍 Ustaw Pythona
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
     
-    - name: 📦 Install dependencies
-      run: |
-        pip install Mastodon.py
+    - name: 📦 Zainstaluj biblioteki
+      run: pip install Mastodon.py
     
-    - name: 🔧 Setup files
-      run: |
-        # Sprawdź czy pliki istnieją, jeśli nie to utwórz
-        if [ ! -f "counter.txt" ]; then
-          echo "0" > counter.txt
-          echo "✅ Created counter.txt"
-        fi
-        
-        if [ ! -f "used_sentences.json" ]; then
-          echo '{"used": [], "reset_date": "2024-01-01"}' > used_sentences.json
-          echo "✅ Created used_sentences.json"
-        fi
-        
-        if [ ! -f "posted_toots.json" ]; then
-          echo "" > posted_toots.json
-          echo "✅ Created posted_toots.json"
-        fi
-        
-        # Sprawdź czy sentences.txt istnieje
-        if [ ! -f "sentences.txt" ]; then
-          echo "❌ ERROR: sentences.txt not found!"
-          echo "Creating example file..."
-          echo "Every small step counts when you're rebuilding your life." > sentences.txt
-          echo "You're stronger than your debts." >> sentences.txt
-          echo "Financial struggles are temporary." >> sentences.txt
-        else
-          echo "✅ sentences.txt exists"
-          echo "📄 Sentences count: $(wc -l < sentences.txt)"
-        fi
-        
-        echo ""
-        echo "📁 Initial files:"
-        ls -la *.txt *.json
-    
-    - name: 🤖 Run bot
+    - name: 🤖 Uruchom bota
       env:
         MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
         MASTODON_BASE_URL: ${{ secrets.MASTODON_BASE_URL }}
       run: |
-        echo "🚀 Starting bot..."
+        echo "=== START BOTA ==="
         python bot.py
-        echo "✅ Bot execution finished"
+        echo "=== KONIEC BOTA ==="
     
-    - name: 💾 Commit and push changes
+    - name: 💾 Zapisz zmiany w GitHub
       run: |
-        # Konfiguracja git
+        echo "=== ZAPISUJĘ ZMIANY ==="
+        
+        # 1. Powiedz git kto jesteś
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email "actions@github.com"
         
-        echo "📦 Checking for file changes..."
+        # 2. Dodaj pliki które zmienił bot
+        git add counter.txt used_sentences.json posted_toots.json
         
-        # Sprawdź czy pliki się zmieniły
-        if git diff --name-only | grep -q -E "counter\.txt|used_sentences\.json|posted_toots\.json"; then
-          echo "📁 Changes detected in bot files!"
-          
-          # Dodaj zmienione pliki
-          git add counter.txt used_sentences.json posted_toots.json
-          
-          # Commit
-          TIMESTAMP=$(date '+%Y-%m-%d %H:%M')
-          git commit -m "🤖 Bot update: $TIMESTAMP"
-          
-          # Push
-          git push
-          echo "✅ Changes committed and pushed to repository"
-          
-          # Pokaż co się zmieniło
-          echo ""
-          echo "📊 Updated files:"
-          if [ -f "counter.txt" ]; then
-            echo "  counter.txt: $(cat counter.txt)"
-          fi
-          
-          if [ -f "used_sentences.json" ]; then
-            USED_COUNT=$(python3 -c "import json; data=json.load(open('used_sentences.json')); print(len(data.get('used', [])))" 2>/dev/null || echo "?")
-            echo "  used_sentences.json: $USED_COUNT sentences used"
-          fi
-          
+        # 3. Sprawdź czy są zmiany
+        if git diff --staged --quiet; then
+          echo "📭 Brak zmian"
         else
-          echo "📭 No changes to commit"
+          echo "✅ Są zmiany - zapisuję..."
+          
+          # 4. Zrób commit
+          git commit -m "🤖 Bot: $(date '+%H:%M')"
+          
+          # 5. Wyślij do GitHub
+          git push
+          
+          echo "🎉 Wszystko zapisane w GitHub!"
         fi
     
-    - name: 📊 Show statistics
-      if: always()
+    - name: ✅ Gotowe
       run: |
         echo ""
-        echo "📈 BOT STATISTICS:"
-        echo "========================"
-        
-        # Sprawdź czy bot utworzył/wykonał pliki
-        if [ -f "counter.txt" ]; then
-          COUNTER=$(cat counter.txt 2>/dev/null || echo "error")
-          echo "📊 Counter: $COUNTER"
-          NEXT_LINK=$((5 - (COUNTER % 5)))
-          echo "🔗 Next shop link in: $NEXT_LINK responses"
-        else
-          echo "📊 Counter: NOT FOUND"
-        fi
-        
-        # Proste sprawdzenie used_sentences.json
-        if [ -f "used_sentences.json" ]; then
-          echo "📝 Checking used sentences..."
-          python3 -c "
-import json
-try:
-    with open('used_sentences.json', 'r') as f:
-        data = json.load(f)
-    used_count = len(data.get('used', []))
-    print(f'   Used sentences today: {used_count}')
-except Exception as e:
-    print(f'   Error: {e}')
-"
-        fi
-        
-        # Sprawdź posted_toots.json
-        if [ -f "posted_toots.json" ]; then
-          LINE_COUNT=$(wc -l < posted_toots.json 2>/dev/null || echo "0")
-          echo "🚀 Total responses posted: $LINE_COUNT"
-          
-          if [ "$LINE_COUNT" -gt "0" ]; then
-            echo "📅 Last 3 responses:"
-            # Pokaż ostatnie 3 w prostszy sposób
-            tail -3 posted_toots.json 2>/dev/null | while read line; do
-              if [ -n "$line" ]; then
-                DATE=$(echo "$line" | grep -o '"date":"[^"]*"' | cut -d'"' -f4 | cut -c12-16 || echo "??:??")
-                USER=$(echo "$line" | grep -o '"to":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
-                echo "   • $DATE → @$USER"
-              fi
-            done
-          fi
-        fi
-        
-        # Sprawdź sentences.txt
-        if [ -f "sentences.txt" ]; then
-          TOTAL_SENTENCES=$(wc -l < sentences.txt 2>/dev/null || echo "0")
-          echo "📚 Total sentences available: $TOTAL_SENTENCES"
-        fi
-        
+        echo "=== 🤖 BOT WYKONANY ==="
+        echo "Czas: $(date '+%H:%M:%S')"
+        echo "Następne uruchomienie: za 30 minut"
         echo ""
-        echo "⏰ Next run: ~30 minutes"
-        echo "🔄 Workflow completed at: $(date '+%H:%M:%S')"
+        echo "📊 Co zrobił bot:"
+        [ -f "counter.txt" ] && echo "Licznik: $(cat counter.txt)"
+        echo "========================"
