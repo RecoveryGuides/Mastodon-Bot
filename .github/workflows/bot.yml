@@ -8,63 +8,32 @@ on:
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # ← TO DAJE PRAWA DO PISANIA
     
     steps:
-    - name: 📥 Pobierz kod z GitHub
+    - name: 📥 Pobierz kod
       uses: actions/checkout@v3
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}   # ← WAŻNE! TO DZIAŁA AUTOMATYCZNIE
     
-    - name: 🐍 Ustaw Pythona
+    - name: 🐍 Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
     
-    - name: 📦 Zainstaluj biblioteki
+    - name: 📦 Instaluj
       run: pip install Mastodon.py
     
     - name: 🤖 Uruchom bota
       env:
         MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
         MASTODON_BASE_URL: ${{ secrets.MASTODON_BASE_URL }}
-      run: |
-        echo "=== START BOTA ==="
-        python bot.py
-        echo "=== KONIEC BOTA ==="
+      run: python bot.py
     
-    - name: 💾 Zapisz zmiany w GitHub
+    - name: 💾 Wyślij zmiany
       run: |
-        echo "=== ZAPISUJĘ ZMIANY ==="
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
         
-        # 1. Powiedz git kto jesteś
-        git config --global user.name "GitHub Actions Bot"
-        git config --global user.email "actions@github.com"
-        
-        # 2. Dodaj pliki które zmienił bot
         git add counter.txt used_sentences.json posted_toots.json
-        
-        # 3. Sprawdź czy są zmiany
-        if git diff --staged --quiet; then
-          echo "📭 Brak zmian"
-        else
-          echo "✅ Są zmiany - zapisuję..."
-          
-          # 4. Zrób commit
-          git commit -m "🤖 Bot: $(date '+%H:%M')"
-          
-          # 5. Wyślij do GitHub
-          git push
-          
-          echo "🎉 Wszystko zapisane w GitHub!"
-        fi
-    
-    - name: ✅ Gotowe
-      run: |
-        echo ""
-        echo "=== 🤖 BOT WYKONANY ==="
-        echo "Czas: $(date '+%H:%M:%S')"
-        echo "Następne uruchomienie: za 30 minut"
-        echo ""
-        echo "📊 Co zrobił bot:"
-        [ -f "counter.txt" ] && echo "Licznik: $(cat counter.txt)"
-        echo "========================"
+        git commit -m "🤖 $(date)" || exit 0
+        git push
