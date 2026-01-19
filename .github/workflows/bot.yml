@@ -2,19 +2,12 @@ name: 🤖 Mastodon Simple Bot
 
 on:
   schedule:
-    # Uruchamiaj co 30 minut, 24/7
     - cron: '*/30 * * * *'
-  
   workflow_dispatch:
-
-concurrency:
-  group: mastodon-simple-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     
     steps:
     - name: 📥 Pobierz kod
@@ -34,18 +27,45 @@ jobs:
         MASTODON_BASE_URL: ${{ secrets.MASTODON_BASE_URL }}
       run: python bot.py
     
-    - name: 💾 Zapisz zmiany
+    - name: 📊 Pokaż statystyki
       if: always()
       run: |
-        git config --global user.email "bot@github.com"
-        git config --global user.name "GitHub Bot"
+        echo "📈 STATYSTYKI BOTA:"
+        echo "========================"
         
-        git add used_sentences.json counter.txt posted_toots.json 2>/dev/null || true
+        if [ -f "counter.txt" ]; then
+          COUNTER=$(cat counter.txt)
+          echo "📊 Licznik odpowiedzi: $COUNTER"
+          echo "🔗 Następny link przy: $((5 - (COUNTER % 5)))"
+        fi
         
-        if git diff --staged --quiet; then
-          echo "📭 Brak zmian"
-        else
-          git commit -m "🤖 Update $(date -u +'%H:%M')"
-          git push
-          echo "✅ Zmiany zapisane"
+        if [ -f "used_sentences.json" ]; then
+          USED=$(python3 -c "
+import json
+try:
+    with open('used_sentences.json') as f:
+        data = json.load(f)
+    print(f\"📝 Użyte sentencje: {len(data.get('used', []))}\")
+except:
+    print(\"📝 Użyte sentencje: 0\")
+")
+          echo "$USED"
+        fi
+        
+        if [ -f "posted_toots.json" ]; then
+          COUNT=$(wc -l < posted_toots.json 2>/dev/null || echo "0")
+          echo "🚀 Opublikowanych odpowiedzi: $COUNT"
+          
+          # Pokaż ostatnie 3
+          echo "📅 Ostatnie odpowiedzi:"
+          tail -3 posted_toots.json 2>/dev/null | while read line; do
+            python3 -c "
+import json, sys
+try:
+    data = json.loads(sys.argv[1])
+    print(f\"   • {data['date'][11:16]} → @{data['to']}\")
+except:
+    pass
+" "$line" || true
+          done
         fi
