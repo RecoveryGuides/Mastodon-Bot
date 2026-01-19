@@ -111,6 +111,10 @@ except:
 counter += 1
 print(f"📊 Licznik komentarzy: {counter}")
 
+# ZAPISZ LICZNIK OD RAZU
+with open('counter.txt', 'w') as f:
+    f.write(str(counter))
+
 # Co 5 komentarz dodaj link
 SHOP_URL = "https://www.payhip.com/daveprime"
 
@@ -120,82 +124,18 @@ if counter % 5 == 0:
 else:
     reply = selected_sentence
 
-# Zapisz licznik
-with open('counter.txt', 'w') as f:
-    f.write(str(counter))
-
 print(f"📤 Przygotowana odpowiedź: {reply[:100]}...")
 
-# 7. WYSZUKAJ POSTY DO ODPOWIEDZI
-print("\n🔍 Szukam postów...")
+# ... dalszy istniejący kod ...
 
-# Hashtagi związane z Twoimi produktami
-keywords = [
-    "debt",
-    "creditor",
-    "collection",
-    "broke",
-    "medical bills",
-    "homeless",
-    "eviction",
-    "food stamps",
-    "SNAP",
-    "financial help",
-    "money stress",
-    "emergency cash"
-]
+# 8. OPUBLIKUJ ODPOWIEDŹ
+print("\n🔄 Publikuję odpowiedź...")
 
-selected_keyword = random.choice(keywords)
-print(f"   Szukam: #{selected_keyword}")
+# Upewnij się że odpowiedź nie jest za długa
+if len(reply) > 480:
+    reply = reply[:475] + "..."
 
 try:
-    # Szukaj postów z hashtagiem
-    posts = mastodon.timeline_hashtag(
-        hashtag=selected_keyword,
-        limit=20
-    )
-    
-    if not posts:
-        print("❌ Nie znaleziono postów, próbuję inny hashtag...")
-        # Fallback - szukaj po prostu "help"
-        posts = mastodon.timeline_hashtag(hashtag="help", limit=15)
-    
-    if not posts:
-        print("❌ Nie znaleziono żadnych postów")
-        exit(0)
-    
-    print(f"✅ Znaleziono {len(posts)} postów")
-    
-    # Filtruj posty - znajdź z engagement
-    good_posts = []
-    for post in posts:
-        # Pomiń swoje własne posty
-        if post['account']['username'] == account['username']:
-            continue
-        
-        # Szukaj postów z engagement
-        if post['favourites_count'] > 0 or post['reblogs_count'] > 0:
-            good_posts.append(post)
-    
-    if not good_posts:
-        good_posts = posts[:5]  # Weź pierwsze 5
-    
-    # Wybierz losowy post
-    post = random.choice(good_posts)
-    
-    print(f"\n🎯 Wybrany post od: @{post['account']['username']}")
-    print(f"   👍 Polubienia: {post['favourites_count']}")
-    print(f"   🔁 Boosty: {post['reblogs_count']}")
-    print(f"   💬 Odpowiedzi: {post['replies_count']}")
-    print(f"   📝 Tekst: {post['content'][:100].replace('<p>', '').replace('</p>', '')}...")
-    
-    # 8. OPUBLIKUJ ODPOWIEDŹ
-    print("\n🔄 Publikuję odpowiedź...")
-    
-    # Upewnij się że odpowiedź nie jest za długa (Mastodon limit ~500 znaków)
-    if len(reply) > 480:
-        reply = reply[:475] + "..."
-    
     # Publikuj
     response = mastodon.status_post(
         status=reply,
@@ -208,28 +148,39 @@ try:
         print(f"🔗 Link: {response['url']}")
         print(f"📅 Data: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
-        # Zapisz do historii postów
+        # ZAPISZ DO HISTORII - WAŻNE!
         try:
-            with open('posted_toots.json', 'a') as f:
+            with open('posted_toots.json', 'a', encoding='utf-8') as f:
                 data = {
                     'date': datetime.now().isoformat(),
                     'url': response['url'],
                     'sentence': selected_sentence,
                     'to': post['account']['username'],
-                    'had_link': (counter % 5 == 0)
+                    'had_link': (counter % 5 == 0),
+                    'counter': counter
                 }
                 f.write(json.dumps(data) + '\n')
-        except:
-            pass
+                print("📁 Zapisano w posted_toots.json")
+        except Exception as e:
+            print(f"⚠️  Błąd zapisu historii: {e}")
             
     else:
         print("❌ Nie udało się opublikować")
     
 except Exception as e:
-    print(f"❌ Błąd: {type(e).__name__}: {e}")
+    print(f"❌ Błąd publikacji: {type(e).__name__}: {e}")
 
 print("\n" + "=" * 50)
 print("🏁 BOT ZAKOŃCZONY")
+
+# NA KONIEC ZAPISZ UŻYTE SENTENCJE PONOWNIE (na wypadek błędu)
+try:
+    with open('used_sentences.json', 'w') as f:
+        json.dump(history, f, indent=2)
+    print("💾 Zapisano użyte sentencje")
+except:
+    pass
+
 print(f"📊 Użyte sentencje: {len(used_sentences)}/{len(all_sentences)}")
 print(f"📈 Licznik linków: {counter} (następny link przy {5 - (counter % 5)})")
 print("=" * 50)
