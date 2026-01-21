@@ -8,7 +8,7 @@ on:
 jobs:
   smart-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 3
     permissions:
       contents: write
     
@@ -16,7 +16,17 @@ jobs:
     - name: 📥 Pobierz kod
       uses: actions/checkout@v3
     
-    - name: 🐍 Uruchom bota (on sam decyduje 24/7)
+    - name: 🐍 Konfiguruj Pythona
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: 📦 Zainstaluj zależności
+      run: |
+        python -m pip install --upgrade pip
+        pip install Mastodon.py
+    
+    - name: 🤖 Uruchom bota
       env:
         MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
         MASTODON_BASE_URL: ${{ secrets.MASTODON_BASE_URL }}
@@ -27,9 +37,14 @@ jobs:
         git config user.name "GitHub Actions"
         git config user.email "actions@github.com"
         
+        # Dodaj wszystkie pliki danych
         git add *.txt *.json 2>/dev/null || true
         
+        # Commit tylko jeśli są zmiany
         if ! git diff --cached --quiet 2>/dev/null; then
           git commit -m "🤖 Update $(date +'%H:%M')"
           git push
+          echo "✅ Zmiany zapisane"
+        else
+          echo "📭 Brak zmian"
         fi
