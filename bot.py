@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
-🤖 MASTODON SIMPLE BOT
+🤖 MASTODON SIMPLE BOT (24/7 SMART VERSION)
+- Sam decyduje czy odpowiadać (max 8 postów dziennie)
+- DZIAŁA 24/7 (w tym w nocy dla międzynarodowej publiczności)
 - Tylko sentencje z sentences.txt
 - Co 5 komentarz link do sklepu
 - Nigdy nie powtarza sentencji
@@ -12,9 +14,109 @@ import json
 import random
 import time
 from datetime import datetime, date
+import sys
 
 print("=" * 50)
-print("🤖 MASTODON SIMPLE BOT")
+print("🤖 MASTODON SMART BOT 24/7")
+print(f"⏰ Godzina: {datetime.now().strftime('%H:%M')}")
+print("=" * 50)
+
+# ==================== NOWA LOGIKA DECYZYJNA (24/7) ====================
+
+def should_i_post_now():
+    """INTELIGENTNA decyzja czy teraz postować (24/7)"""
+    now = datetime.now()
+    hour = now.hour
+    weekday = now.weekday()  # 0=poniedziałek, 6=niedziela
+    
+    # 1. Sprawdź dzienny limit (zwiększony do 8)
+    MAX_POSTS_PER_DAY = 8
+    LIMIT_FILE = "daily_limit.json"
+    
+    try:
+        with open(LIMIT_FILE, 'r') as f:
+            limit_data = json.load(f)
+    except:
+        limit_data = {"date": None, "posts_today": 0}
+    
+    today = date.today().isoformat()
+    
+    # Reset jeśli nowy dzień
+    if limit_data.get("date") != today:
+        limit_data = {"date": today, "posts_today": 0}
+        with open(LIMIT_FILE, 'w') as f:
+            json.dump(limit_data, f, indent=2)
+    
+    # Sprawdź limit
+    if limit_data["posts_today"] >= MAX_POSTS_PER_DAY:
+        print(f"⏭️ Dzisiejszy limit: {limit_data['posts_today']}/{MAX_POSTS_PER_DAY}")
+        return False
+    
+    # 2. RÓŻNE SZANSE W ZALEŻNOŚCI OD PORY (24/7):
+    chance = random.random()
+    
+    # WIĘKSZE SZANSE W NOCY dla międzynarodowej publiczności!
+    if 0 <= hour < 6:    # Noc głęboka (0-6): 40% szans - DOBRY CZAS!
+        print(f"🌙 Nocna zmiana (0-6) - celuję w USA/Azje")
+        if chance > 0.40:
+            print(f"   🎲 Losowo pomijam (szansa: {chance:.2f})")
+            return False
+    
+    elif 6 <= hour < 9:   # Poranek (6-9): 30% szans - Europa budzi się
+        print(f"🌅 Poranek (6-9) - Europa wschodzi")
+        if chance > 0.30:
+            print(f"   🎲 Losowo pomijam (szansa: {chance:.2f})")
+            return False
+    
+    elif 9 <= hour < 12:  # Przedpołudnie (9-12): 35% szans
+        print(f"☀️ Przedpołudnie (9-12) - Europa aktywna")
+        if chance > 0.35:
+            print(f"   🎲 Losowo pomijam (szansa: {chance:.2f})")
+            return False
+    
+    elif 12 <= hour < 17: # Południe (12-17): 45% szans - NAJLEPSZY CZAS dla Europy
+        print(f"🌞 Południe (12-17) - szczyt aktywności Europy")
+        if chance > 0.45:
+            print(f"   🎲 Losowo pomijam (szansa: {chance:.2f})")
+            return False
+    
+    elif 17 <= hour < 21: # Wieczór (17-21): 40% szans - USA rano/południe
+        print(f"🌆 Wieczór (17-21) - USA budzi się")
+        if chance > 0.40:
+            print(f"   🎲 Losowo pomijam (szansa: {chance:.2f})")
+            return False
+    
+    else:  # Późny wieczór/noc (21-24): 35% szans - USA aktywna
+        print(f"🌃 Późny wieczór (21-24) - USA w pełni")
+        if chance > 0.35:
+            print(f"   🎲 Losowo pomijam (szansa: {chance:.2f})")
+            return False
+    
+    # 3. Weekend vs weekday (mniejsza aktywność w weekendy)
+    if weekday >= 5:  # Weekend
+        weekend_chance = random.random()
+        if weekend_chance > 0.6:  # 40% mniej postów w weekend
+            print(f"🎪 Weekend - zmniejszam aktywność")
+            return False
+    
+    # 4. Zaktualizuj licznik
+    limit_data["posts_today"] += 1
+    with open(LIMIT_FILE, 'w') as f:
+        json.dump(limit_data, f, indent=2)
+    
+    time_of_day = ["noc", "rano", "przedpołudnie", "południe", "wieczór", "noc"][hour // 4]
+    print(f"✅ DECYZJA: POSTUJĘ o {now.strftime('%H:%M')} ({time_of_day})!")
+    print(f"   📊 {limit_data['posts_today']}/{MAX_POSTS_PER_DAY} postów dzisiaj")
+    return True
+
+# ==================== GŁÓWNA DECYZJA ====================
+if not should_i_post_now():
+    print("💤 Kończę pracę - nie postuję teraz")
+    sys.exit(0)
+
+# ==================== RESZTA TWOJEGO KODU (BEZ ZMIAN) ====================
+print("\n" + "=" * 50)
+print("🚀 ROZPOCZYNAM POSTOWANIE")
 print("=" * 50)
 
 # 1. INICJALIZUJ PLIKI (ŻEBY NA PEWNO ISTNIAŁY)
@@ -34,6 +136,11 @@ def init_files():
         with open("posted_toots.json", "w") as f:
             f.write("")
         print("✅ posted_toots.json created")
+    
+    if not os.path.exists("daily_limit.json"):
+        with open("daily_limit.json", "w") as f:
+            json.dump({"date": date.today().isoformat(), "posts_today": 1}, f)
+        print("✅ daily_limit.json created")
     
     if not os.path.exists("sentences.txt"):
         print("❌ BRAK sentences.txt!")
@@ -158,7 +265,7 @@ print(f"📤 Przygotowana odpowiedź: {reply[:100]}...")
 # 8. WYSZUKAJ POSTY DO ODPOWIEDZI
 print("\n🔍 Szukam postów...")
 
-# Hashtagi związane z problemami finansowymi
+# Hashtagi związane z problemami finansowymi (teraz międzynarodowe)
 keywords = [
     "debt",
     "creditor", 
@@ -293,4 +400,5 @@ except:
 
 print(f"📊 Użyte sentencje: {len(used_sentences)}/{len(all_sentences)}")
 print(f"📈 Licznik: {counter} (następny link za {5 - (counter % 5)})")
+print(f"📆 Posty dzisiaj: {limit_data['posts_today'] if 'limit_data' in locals() else '?'}/8")
 print("=" * 50)
