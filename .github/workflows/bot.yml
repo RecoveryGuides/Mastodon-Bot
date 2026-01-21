@@ -1,15 +1,14 @@
-name: 🤖 Mastodon Simple Bot (Safe)
+name: 🤖 Mastodon Bot (24/7)
 
 on:
   schedule:
-    # Dwa razy dziennie o różnych porach
-    - cron: '0 10 * * *'   # ~10:00 (pierwszy post)
-    - cron: '0 18 * * *'   # ~18:00 (drugi post)
+    - cron: '*/30 * * * *'  # Co 30 minut, 24/7
   workflow_dispatch:
 
 jobs:
-  run-bot:
+  smart-bot:
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     permissions:
       contents: write
     
@@ -17,36 +16,20 @@ jobs:
     - name: 📥 Pobierz kod
       uses: actions/checkout@v3
     
-    - name: 🎲 Losowe opóźnienie
-      id: delay
-      run: |
-        # Losowe opóźnienie 0-90 minut
-        DELAY=$(( RANDOM % 5400 ))
-        echo "delay=$DELAY" >> $GITHUB_OUTPUT
-        echo "⏱️ Losowe opóźnienie: $(($DELAY/60)) minut"
-    
-    - name: ⏳ Poczekaj losowy czas
-      run: sleep ${{ steps.delay.outputs.delay }}
-    
-    - name: 🐍 Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
-    
-    - name: 📦 Instaluj
-      run: pip install Mastodon.py
-    
-    - name: 🤖 Uruchom bota
+    - name: 🐍 Uruchom bota (on sam decyduje 24/7)
       env:
         MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
         MASTODON_BASE_URL: ${{ secrets.MASTODON_BASE_URL }}
       run: python bot.py
     
-    - name: 💾 Wyślij zmiany
+    - name: 💾 Zapisz zmiany
       run: |
         git config user.name "GitHub Actions"
         git config user.email "actions@github.com"
         
-        git add counter.txt used_sentences.json posted_toots.json
-        git commit -m "🤖 $(date)" || exit 0
-        git push
+        git add *.txt *.json 2>/dev/null || true
+        
+        if ! git diff --cached --quiet 2>/dev/null; then
+          git commit -m "🤖 Update $(date +'%H:%M')"
+          git push
+        fi
