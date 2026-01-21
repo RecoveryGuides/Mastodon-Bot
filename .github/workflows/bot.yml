@@ -1,19 +1,32 @@
-name: 🤖 Mastodon Simple Bot
+name: 🤖 Mastodon Simple Bot (Safe)
 
 on:
   schedule:
-    - cron: '0 */2 * * *'
+    # Dwa razy dziennie o różnych porach
+    - cron: '0 10 * * *'   # ~10:00 (pierwszy post)
+    - cron: '0 18 * * *'   # ~18:00 (drugi post)
   workflow_dispatch:
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # ← TO DAJE PRAWA DO PISANIA
+      contents: write
     
     steps:
     - name: 📥 Pobierz kod
       uses: actions/checkout@v3
+    
+    - name: 🎲 Losowe opóźnienie
+      id: delay
+      run: |
+        # Losowe opóźnienie 0-90 minut
+        DELAY=$(( RANDOM % 5400 ))
+        echo "delay=$DELAY" >> $GITHUB_OUTPUT
+        echo "⏱️ Losowe opóźnienie: $(($DELAY/60)) minut"
+    
+    - name: ⏳ Poczekaj losowy czas
+      run: sleep ${{ steps.delay.outputs.delay }}
     
     - name: 🐍 Python
       uses: actions/setup-python@v4
