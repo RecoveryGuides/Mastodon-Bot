@@ -2,7 +2,7 @@ name: 🤖 Mastodon Simple Bot
 
 on:
   schedule:
-    - cron: '*/59 * * * *'
+    - cron: '0 */2 * * *'
   workflow_dispatch:
 
 jobs:
